@@ -24,7 +24,7 @@ public class LLMClient {
     public LLMClient() {
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         this.apiKey = dotenv.get("ANTHROPIC_API_KEY");
-        this.baseUrl = dotenv.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
+        this.baseUrl = dotenv.get("ANTHROPIC_BASE_URL");
         
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(60, TimeUnit.SECONDS)
