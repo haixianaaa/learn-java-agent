@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.util.*;
 
 public class Main {
-    private static final String MODEL = "deepseek-chat";
+    private static final String MODEL = "mimo-v2.5-pro";
     private static final String SYSTEM = """
             You are a coding agent.
             Use bash to inspect and change the workspace. Act first, then report clearly.

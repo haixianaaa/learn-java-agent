@@ -12,7 +12,7 @@ import java.util.*;
 @Data
 @Builder
 public class SubAgent {
-    private static final String MODEL = "deepseek-chat";
+    private static final String MODEL = "mimo-v2.5-pro";
     private static final int MAX_TURNS = 30;
 
     private final LLMClient client;

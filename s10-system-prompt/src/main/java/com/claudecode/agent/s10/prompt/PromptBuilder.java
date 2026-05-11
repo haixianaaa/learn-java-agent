@@ -7,7 +7,7 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 
 public class PromptBuilder {
-    private static final String MODEL = "deepseek-chat";
+    private static final String MODEL = "mimo-v2.5-pro";
 
     public String buildSystemPrompt(String workDir) {
         return SystemPrompt.builder()
