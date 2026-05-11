@@ -1,96 +1,75 @@
 package com.claudecode.agent.s20;
 
-import java.lang.annotation.*;
-import java.util.*;
+import com.claudecode.agent.s20.registry.*;
+import com.claudecode.agent.s20.tools.*;
+
+import java.util.Map;
+import java.util.Scanner;
 
 public class Main {
-    public static void main(String[] args) throws Exception {
-        System.out.println("S20 - Tool Refactor with Annotations");
-        
+    public static void main(String[] args) {
         ToolRegistry registry = new ToolRegistry();
+        
         registry.register(new MathTools());
-        
-        System.out.println("Registered tools:");
-        registry.listTools().forEach(t -> System.out.println("  " + t.name() + ": " + t.description()));
-        
-        Object result = registry.execute("add", Map.of("a", 5, "b", 3));
-        System.out.println("\nResult of add(5, 3): " + result);
-        
-        result = registry.execute("multiply", Map.of("a", 4, "b", 7));
-        System.out.println("Result of multiply(4, 7): " + result);
-    }
-}
+        registry.register(new StringTools());
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.METHOD)
-@interface Tool {
-    String name();
-    String description();
-}
+        System.out.println("S20 - Tool Refactor with Annotations");
+        System.out.println(registry.renderTools());
+        System.out.println("Commands: list, exec <tool> <json>, specs, exit()");
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.PARAMETER)
-@interface Param {
-    String name();
-    String description() default "";
-}
+        Scanner scanner = new Scanner(System.in);
 
-record ToolInfo(String name, String description, java.lang.reflect.Method method, Object instance) {}
+        while (true) {
+            System.out.print("\n> ");
+            String input = scanner.nextLine().trim();
 
-class ToolRegistry {
-    private final Map<String, ToolInfo> tools = new HashMap<>();
-    
-    public void register(Object toolInstance) {
-        for (java.lang.reflect.Method method : toolInstance.getClass().getDeclaredMethods()) {
-            Tool toolAnnotation = method.getAnnotation(Tool.class);
-            if (toolAnnotation != null) {
-                ToolInfo info = new ToolInfo(toolAnnotation.name(), toolAnnotation.description(), method, toolInstance);
-                tools.put(toolAnnotation.name(), info);
+            if (input.equals("exit()")) {
+                System.out.println("Goodbye!");
+                break;
+            }
+
+            if (input.equals("list")) {
+                System.out.println(registry.renderTools());
+            } else if (input.equals("specs")) {
+                for (Map<String, Object> spec : registry.listToolSpecs()) {
+                    System.out.println("  " + spec.get("name") + ": " + spec.get("input_schema"));
+                }
+            } else if (input.startsWith("exec ")) {
+                String[] parts = input.substring(5).split(" ", 2);
+                String toolName = parts[0];
+                
+                Map<String, Object> params = Map.of();
+                if (parts.length > 1) {
+                    String[] keyValuePairs = parts[1].split(",");
+                    Map<String, Object> parsed = new java.util.HashMap<>();
+                    for (String pair : keyValuePairs) {
+                        String[] kv = pair.split("=");
+                        if (kv.length == 2) {
+                            String key = kv[0].trim();
+                            String value = kv[1].trim();
+                            try {
+                                parsed.put(key, Integer.parseInt(value));
+                            } catch (NumberFormatException e) {
+                                try {
+                                    parsed.put(key, Double.parseDouble(value));
+                                } catch (NumberFormatException e2) {
+                                    parsed.put(key, value);
+                                }
+                            }
+                        }
+                    }
+                    params = parsed;
+                }
+
+                try {
+                    Object result = registry.execute(toolName, params);
+                    System.out.println("Result: " + result);
+                } catch (Exception e) {
+                    System.out.println("Error: " + e.getMessage());
+                }
             }
         }
-    }
-    
-    public List<ToolInfo> listTools() {
-        return new ArrayList<>(tools.values());
-    }
-    
-    public Object execute(String name, Map<String, Object> params) throws Exception {
-        ToolInfo tool = tools.get(name);
-        if (tool == null) {
-            return "Unknown tool: " + name;
-        }
-        
-        java.lang.reflect.Method method = tool.method();
-        Class<?>[] paramTypes = method.getParameterTypes();
-        Object[] args = new Object[paramTypes.length];
-        
-        String[] paramNames = params.keySet().toArray(new String[0]);
-        for (int i = 0; i < Math.min(paramNames.length, args.length); i++) {
-            args[i] = params.get(paramNames[i]);
-        }
-        
-        return method.invoke(tool.instance(), args);
-    }
-}
 
-class MathTools {
-    @Tool(name = "add", description = "Add two numbers")
-    public int add(int a, int b) {
-        return a + b;
-    }
-    
-    @Tool(name = "subtract", description = "Subtract two numbers")
-    public int subtract(int a, int b) {
-        return a - b;
-    }
-    
-    @Tool(name = "multiply", description = "Multiply two numbers")
-    public int multiply(int a, int b) {
-        return a * b;
-    }
-    
-    @Tool(name = "divide", description = "Divide two numbers")
-    public double divide(double a, double b) {
-        return a / b;
+        scanner.close();
     }
 }

@@ -1,91 +1,54 @@
 package com.claudecode.agent.s19;
 
-import java.util.*;
-import java.util.concurrent.*;
+import com.claudecode.agent.s19.mcp.*;
+
+import java.util.Map;
+import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
+        MCPPluginManager manager = new MCPPluginManager();
+        
+        manager.register(new FilesystemPlugin());
+        manager.register(new DatabasePlugin());
+
         System.out.println("S19 - MCP Plugin System");
-        
-        MCPPluginManager pluginManager = new MCPPluginManager();
-        
-        pluginManager.registerPlugin("filesystem", new FilesystemPlugin());
-        pluginManager.registerPlugin("database", new DatabasePlugin());
-        
-        System.out.println("Registered plugins:");
-        pluginManager.listPlugins().forEach(p -> System.out.println("  " + p));
-        
-        Object result = pluginManager.callTool("filesystem", "read_file", Map.of("path", "/tmp/test.txt"));
-        System.out.println("\nTool result: " + result);
-    }
-}
+        System.out.println(manager.renderPlugins());
+        System.out.println("Commands: plugins, tools, call <plugin> <tool> [params], exit()");
 
-interface MCPPlugin {
-    String name();
-    List<String> tools();
-    Object callTool(String toolName, Map<String, Object> params);
-}
+        Scanner scanner = new Scanner(System.in);
 
-class FilesystemPlugin implements MCPPlugin {
-    @Override
-    public String name() {
-        return "filesystem";
-    }
-    
-    @Override
-    public List<String> tools() {
-        return List.of("read_file", "write_file", "list_dir");
-    }
-    
-    @Override
-    public Object callTool(String toolName, Map<String, Object> params) {
-        return switch (toolName) {
-            case "read_file" -> "Content of " + params.get("path");
-            case "write_file" -> "Written to " + params.get("path");
-            case "list_dir" -> List.of("file1.txt", "file2.txt");
-            default -> "Unknown tool: " + toolName;
-        };
-    }
-}
+        while (true) {
+            System.out.print("\n> ");
+            String input = scanner.nextLine().trim();
 
-class DatabasePlugin implements MCPPlugin {
-    @Override
-    public String name() {
-        return "database";
-    }
-    
-    @Override
-    public List<String> tools() {
-        return List.of("query", "insert", "update");
-    }
-    
-    @Override
-    public Object callTool(String toolName, Map<String, Object> params) {
-        return switch (toolName) {
-            case "query" -> List.of(Map.of("id", 1, "name", "test"));
-            case "insert" -> "Inserted 1 row";
-            case "update" -> "Updated 1 row";
-            default -> "Unknown tool: " + toolName;
-        };
-    }
-}
+            if (input.equals("exit()")) {
+                System.out.println("Goodbye!");
+                break;
+            }
 
-class MCPPluginManager {
-    private final Map<String, MCPPlugin> plugins = new ConcurrentHashMap<>();
-    
-    public void registerPlugin(String name, MCPPlugin plugin) {
-        plugins.put(name, plugin);
-    }
-    
-    public List<String> listPlugins() {
-        return new ArrayList<>(plugins.keySet());
-    }
-    
-    public Object callTool(String pluginName, String toolName, Map<String, Object> params) {
-        MCPPlugin plugin = plugins.get(pluginName);
-        if (plugin == null) {
-            return "Unknown plugin: " + pluginName;
+            if (input.equals("plugins")) {
+                System.out.println(manager.renderPlugins());
+            } else if (input.equals("tools")) {
+                System.out.println("All available tools:");
+                for (Map<String, Object> tool : manager.listAllTools()) {
+                    System.out.println("  - " + tool.get("name"));
+                }
+            } else if (input.startsWith("call ")) {
+                String[] parts = input.substring(5).split(" ", 3);
+                if (parts.length >= 2) {
+                    String plugin = parts[0];
+                    String tool = parts[1];
+                    Map<String, Object> params = parts.length > 2 
+                            ? Map.of("input", parts[2]) 
+                            : Map.of();
+                    
+                    Object result = manager.callTool(plugin, tool, params);
+                    System.out.println("Result: " + result);
+                }
+            }
         }
-        return plugin.callTool(toolName, params);
+
+        scanner.close();
     }
 }

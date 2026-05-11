@@ -12,6 +12,10 @@
     <artifactId>s16-team-protocols</artifactId>
     <name>S16 - Team Protocols</name>
 
+    <dependencies>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

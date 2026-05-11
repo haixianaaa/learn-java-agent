@@ -1,57 +1,61 @@
 package com.claudecode.agent.s15;
 
-import java.util.*;
-import java.util.concurrent.*;
+import com.claudecode.agent.s15.team.*;
+
+import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
+        MessageBus messageBus = new MessageBus();
+        TeammateManager teamManager = new TeammateManager(messageBus);
+
         System.out.println("S15 - Agent Teams");
-        
-        TeammateManager teamManager = new TeammateManager();
-        
-        Teammate agent1 = teamManager.spawn("researcher", "Research agent");
-        Teammate agent2 = teamManager.spawn("coder", "Coding agent");
-        
-        System.out.println("Team members:");
-        teamManager.list().forEach(t -> System.out.println("  " + t));
-        
-        teamManager.sendMessage(agent1.id(), agent2.id(), "Please implement the feature");
-        
-        List<Message> inbox = teamManager.readInbox(agent2.id());
-        System.out.println("\nAgent2 inbox:");
-        inbox.forEach(m -> System.out.println("  From " + m.from() + ": " + m.content()));
-    }
-}
+        System.out.println("Commands: spawn <role> <name>, list, send <from> <to> <msg>, inbox <id>, shutdown <from> <to>, exit()");
 
-record Teammate(String id, String name, String role) {}
+        Scanner scanner = new Scanner(System.in);
 
-record Message(String id, String from, String to, String content, long timestamp) {}
+        while (true) {
+            System.out.print("\n> ");
+            String input = scanner.nextLine().trim();
 
-class TeammateManager {
-    private final Map<String, Teammate> teammates = new ConcurrentHashMap<>();
-    private final Map<String, List<Message>> inboxes = new ConcurrentHashMap<>();
-    
-    public Teammate spawn(String role, String name) {
-        String id = UUID.randomUUID().toString().substring(0, 8);
-        Teammate teammate = new Teammate(id, name, role);
-        teammates.put(id, teammate);
-        inboxes.put(id, new CopyOnWriteArrayList<>());
-        return teammate;
-    }
-    
-    public List<Teammate> list() {
-        return new ArrayList<>(teammates.values());
-    }
-    
-    public void sendMessage(String from, String to, String content) {
-        Message msg = new Message(UUID.randomUUID().toString().substring(0, 8), from, to, content, System.currentTimeMillis());
-        List<Message> inbox = inboxes.get(to);
-        if (inbox != null) {
-            inbox.add(msg);
+            if (input.equals("exit()")) {
+                System.out.println("Goodbye!");
+                break;
+            }
+
+            if (input.startsWith("spawn ")) {
+                String[] parts = input.substring(6).split(" ", 2);
+                if (parts.length >= 2) {
+                    Teammate t = teamManager.spawn(parts[0], parts[1]);
+                    System.out.println("Spawned: " + t);
+                }
+            } else if (input.equals("list")) {
+                System.out.println(teamManager.renderTeam());
+            } else if (input.startsWith("send ")) {
+                String[] parts = input.substring(5).split(" ", 3);
+                if (parts.length >= 3) {
+                    teamManager.sendMessage(parts[0], parts[1], parts[2]);
+                    System.out.println("Message sent from " + parts[0] + " to " + parts[1]);
+                }
+            } else if (input.startsWith("inbox ")) {
+                String id = input.substring(6);
+                List<InboxMessage> messages = teamManager.readInbox(id);
+                if (messages.isEmpty()) {
+                    System.out.println("Inbox empty");
+                } else {
+                    for (InboxMessage m : messages) {
+                        System.out.println("  From " + m.getFrom() + ": " + m.getContent());
+                    }
+                }
+            } else if (input.startsWith("shutdown ")) {
+                String[] parts = input.substring(9).split(" ", 2);
+                if (parts.length >= 2) {
+                    teamManager.sendShutdownRequest(parts[0], parts[1]);
+                    System.out.println("Shutdown request sent");
+                }
+            }
         }
-    }
-    
-    public List<Message> readInbox(String teammateId) {
-        return new ArrayList<>(inboxes.getOrDefault(teammateId, Collections.emptyList()));
+
+        scanner.close();
     }
 }

@@ -12,6 +12,10 @@
     <artifactId>s18-worktree-task-isolation</artifactId>
     <name>S18 - Worktree Task Isolation</name>
 
+    <dependencies>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

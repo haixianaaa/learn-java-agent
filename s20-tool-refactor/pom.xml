@@ -12,6 +12,10 @@
     <artifactId>s20-tool-refactor</artifactId>
     <name>S20 - Tool Refactor</name>
 
+    <dependencies>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

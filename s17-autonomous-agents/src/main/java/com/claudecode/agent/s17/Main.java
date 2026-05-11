@@ -1,80 +1,64 @@
 package com.claudecode.agent.s17;
 
-import java.util.*;
-import java.util.concurrent.*;
+import com.claudecode.agent.s17.autonomous.*;
+
+import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("S17 - Autonomous Agents");
-        
         AutonomousAgentManager manager = new AutonomousAgentManager();
-        
-        AutonomousAgent agent = manager.createAgent("worker", "Task execution agent");
-        System.out.println("Created agent: " + agent);
-        
-        manager.assignTask(agent.id(), "Process data files");
-        manager.assignTask(agent.id(), "Generate report");
-        
-        System.out.println("\nAgent tasks:");
-        manager.getTasks(agent.id()).forEach(t -> System.out.println("  " + t));
-        
-        manager.startAgent(agent.id());
-        
-        System.out.println("\nAgent status: " + manager.getStatus(agent.id()));
-    }
-}
 
-record AutonomousAgent(String id, String name, String role, String status) {
-    public AutonomousAgent(String id, String name, String role) {
-        this(id, name, role, "idle");
-    }
-    
-    public AutonomousAgent withStatus(String newStatus) {
-        return new AutonomousAgent(id, name, role, newStatus);
-    }
-}
+        System.out.println("S17 - Autonomous Agents");
+        System.out.println("Commands: agent <name> <role>, task <subject> <desc>, assign <taskId> <agentId>, start <id>, stop <id>, list, tasks, exit()");
 
-record Task(String id, String content, String status) {
-    public Task(String id, String content) {
-        this(id, content, "pending");
-    }
-    
-    public Task withStatus(String newStatus) {
-        return new Task(id, content, newStatus);
-    }
-}
+        Scanner scanner = new Scanner(System.in);
 
-class AutonomousAgentManager {
-    private final Map<String, AutonomousAgent> agents = new ConcurrentHashMap<>();
-    private final Map<String, List<Task>> agentTasks = new ConcurrentHashMap<>();
-    
-    public AutonomousAgent createAgent(String role, String name) {
-        String id = UUID.randomUUID().toString().substring(0, 8);
-        AutonomousAgent agent = new AutonomousAgent(id, name, role);
-        agents.put(id, agent);
-        agentTasks.put(id, new CopyOnWriteArrayList<>());
-        return agent;
-    }
-    
-    public void assignTask(String agentId, String content) {
-        List<Task> tasks = agentTasks.get(agentId);
-        if (tasks != null) {
-            tasks.add(new Task(UUID.randomUUID().toString().substring(0, 8), content));
+        while (true) {
+            System.out.print("\n> ");
+            String input = scanner.nextLine().trim();
+
+            if (input.equals("exit()")) {
+                manager.shutdown();
+                System.out.println("Goodbye!");
+                break;
+            }
+
+            if (input.startsWith("agent ")) {
+                String[] parts = input.substring(6).split(" ", 2);
+                if (parts.length >= 2) {
+                    AutonomousAgent agent = manager.createAgent(parts[0], parts[1], "You are an autonomous agent.");
+                    System.out.println("Created agent: " + agent.getId() + " - " + agent.getName());
+                }
+            } else if (input.startsWith("task ")) {
+                String[] parts = input.substring(5).split(" ", 2);
+                if (parts.length >= 2) {
+                    AgentTask task = manager.createTask(parts[0], parts[1]);
+                    System.out.println("Created task: " + task.getId() + " - " + task.getSubject());
+                }
+            } else if (input.startsWith("assign ")) {
+                String[] parts = input.substring(7).split(" ", 2);
+                if (parts.length == 2) {
+                    manager.assignTask(parts[0], parts[1]);
+                    System.out.println("Assigned task " + parts[0] + " to agent " + parts[1]);
+                }
+            } else if (input.startsWith("start ")) {
+                String id = input.substring(6);
+                manager.startAgent(id);
+            } else if (input.startsWith("stop ")) {
+                String id = input.substring(5);
+                manager.stopAgent(id);
+            } else if (input.equals("list")) {
+                for (AutonomousAgent agent : manager.listAgents()) {
+                    System.out.println("  [" + agent.getStatus() + "] " + agent.getId() + ": " + agent.getName() + " (" + agent.getRole() + ")");
+                }
+            } else if (input.equals("tasks")) {
+                for (AgentTask task : manager.listTasks()) {
+                    System.out.println("  [" + task.getStatus() + "] " + task.getId() + ": " + task.getSubject() + 
+                            (task.getAssignee() != null ? " -> " + task.getAssignee() : ""));
+                }
+            }
         }
-    }
-    
-    public List<Task> getTasks(String agentId) {
-        return new ArrayList<>(agentTasks.getOrDefault(agentId, Collections.emptyList()));
-    }
-    
-    public void startAgent(String agentId) {
-        AutonomousAgent agent = agents.get(agentId);
-        if (agent != null) {
-            agents.put(agentId, agent.withStatus("running"));
-        }
-    }
-    
-    public String getStatus(String agentId) {
-        return agents.getOrDefault(agentId, new AutonomousAgent("", "", "", "not_found")).status();
+
+        scanner.close();
     }
 }
