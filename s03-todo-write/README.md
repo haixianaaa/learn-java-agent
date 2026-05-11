@@ -1,0 +1,75 @@
+# S03 - Todo Write
+
+本章实现 todo 工具，让 agent 可以维护当前会话的工作计划。Todo 是短期、轻量的进度管理工具。
+
+## 运行方式
+
+```bash
+cd s03-todo-write
+mvn exec:java -Dexec.mainClass="com.claudecode.agent.s03.Main"
+```
+
+## 本章新增能力
+
+- 新增 `TodoManager` 管理 todo 列表
+- 支持 `pending`、`in_progress`、`completed` 三种状态
+- 限制最多 12 个 todo 项
+- 限制同时只能有一个 `in_progress` 项
+- 渲染格式化的 todo 列表
+
+## 代码结构
+
+```text
+s03-todo-write/
+├── src/main/java/com/claudecode/agent/s03/
+│   ├── Main.java
+│   ├── model/
+│   │   ├── PlanItem.java        # Todo 项
+│   │   └── PlanItemStatus.java  # 状态枚举
+│   └── tool/
+│       └── TodoManager.java     # Todo 管理器
+└── pom.xml
+```
+
+## PlanItem
+
+```java
+public class PlanItem {
+    private String content;      // 任务内容
+    private PlanItemStatus status; // 状态
+    private String activeForm;   // 进行中的活动描述
+}
+```
+
+## 状态显示
+
+```text
+[ ] pending
+[>] in_progress
+[x] completed
+```
+
+## 限制
+
+- 最多 12 个 todo 项
+- 同时只能有一个 `in_progress` 项
+- Todo 只存在于当前会话，不会持久化
+
+## Todo vs Task
+
+| 特性 | Todo | Task |
+|------|------|------|
+| 生命周期 | 会话内 | 持久化 |
+| 存储 | 内存 | 文件系统 |
+| 用途 | 短期计划 | 长期工作项 |
+| 依赖关系 | 无 | 支持 |
+
+## 本章的局限
+
+- 没有持久化
+- 没有依赖关系
+- 没有优先级排序
+
+## 下一章
+
+s04 会引入 subagent，让 agent 可以启动独立上下文的子代理来执行子任务。

@@ -1,0 +1,67 @@
+# S15 - Agent Teams
+
+本章实现代理团队系统，支持多代理协作。每个队友有独立的身份和收件箱。
+
+## 运行方式
+
+```bash
+cd s15-agent-teams
+mvn exec:java -Dexec.mainClass="com.claudecode.agent.s15.Main"
+```
+
+## 本章新增能力
+
+- 新增 `TeammateManager` 管理队友
+- 新增 `MessageBus` 实现消息传递
+- 队友有独立的收件箱
+- 支持 shutdown 请求
+
+## 代码结构
+
+```text
+s15-agent-teams/
+├── src/main/java/com/claudecode/agent/s15/
+│   ├── Main.java
+│   └── team/
+│       ├── Teammate.java         # 队友模型
+│       ├── InboxMessage.java     # 收件箱消息
+│       ├── MessageBus.java       # 消息总线
+│       └── TeammateManager.java  # 队友管理器
+└── pom.xml
+```
+
+## Teammate 模型
+
+```java
+public class Teammate {
+    private String id;
+    private String name;
+    private String role;
+    private String status;
+    private Instant createdAt;
+}
+```
+
+## 消息类型
+
+- `text`: 普通文本消息
+- `shutdown_request`: 关闭请求
+
+## Subagent vs Teammate
+
+| 特性 | Subagent | Teammate |
+|------|----------|----------|
+| 生命周期 | 一次性 | 长期存活 |
+| 上下文 | 独立新建 | 可恢复 |
+| 通信 | 返回总结 | inbox 消息 |
+| 身份 | 匿名 | 有名字和角色 |
+
+## 本章的局限
+
+- 没有消息持久化
+- 没有消息确认
+- 没有队友状态同步
+
+## 下一章
+
+s16 会实现团队协议系统，标准化队友间的通信协议。

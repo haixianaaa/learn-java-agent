@@ -1,0 +1,71 @@
+# S17 - Autonomous Agents
+
+本章实现自主代理系统，支持独立运行的代理。自主代理有自己的任务队列和生命周期。
+
+## 运行方式
+
+```bash
+cd s17-autonomous-agents
+mvn exec:java -Dexec.mainClass="com.claudecode.agent.s17.Main"
+```
+
+## 本章新增能力
+
+- 新增 `AutonomousAgentManager` 管理自主代理
+- 代理有独立的任务队列
+- 支持任务分配和状态跟踪
+- 支持启动/停止代理
+
+## 代码结构
+
+```text
+s17-autonomous-agents/
+├── src/main/java/com/claudecode/agent/s17/
+│   ├── Main.java
+│   └── autonomous/
+│       ├── AutonomousAgent.java      # 自主代理模型
+│       ├── AgentTask.java            # 代理任务
+│       └── AutonomousAgentManager.java # 管理器
+└── pom.xml
+```
+
+## AutonomousAgent 模型
+
+```java
+public class AutonomousAgent {
+    private String id;
+    private String name;
+    private String role;
+    private String status;
+    private String systemPrompt;
+    private int maxRounds;
+}
+```
+
+## AgentTask 模型
+
+```java
+public class AgentTask {
+    private String id;
+    private String subject;
+    private String description;
+    private String status;
+    private String assignee;
+}
+```
+
+## 代理状态
+
+- `idle`: 空闲
+- `working`: 工作中
+- `shutdown`: 已关闭
+
+## 本章的局限
+
+- 没有代理间通信
+- 没有任务优先级
+- 没有资源限制
+
+## 下一章
+
+s18 会实现工作树隔离系统，为任务创建独立的工作目录。

@@ -1,0 +1,74 @@
+# S08 - Hook System
+
+本章实现钩子系统，允许在工具调用前后执行自定义逻辑。
+
+## 运行方式
+
+```bash
+cd s08-hook-system
+mvn exec:java -Dexec.mainClass="com.claudecode.agent.s08.Main"
+```
+
+## 本章新增能力
+
+- 新增 `HookSystem` 管理钩子
+- 支持 `PreToolUseHook`、`PostToolUseHook`、`SessionStartHook`
+- 钩子可以阻止工具执行
+
+## 代码结构
+
+```text
+s08-hook-system/
+├── src/main/java/com/claudecode/agent/s08/
+│   ├── Main.java
+│   └── hook/
+│       ├── ToolUse.java          # 工具调用
+│       ├── ToolResult.java       # 工具结果
+│       ├── HookControl.java      # 钩子控制
+│       ├── HookInterfaces.java   # 钩子接口
+│       └── HookSystem.java       # 钩子系统
+└── pom.xml
+```
+
+## 钩子接口
+
+```java
+@FunctionalInterface
+public interface PreToolUseHook extends Function<ToolUse, HookControl> {}
+
+@FunctionalInterface
+public interface PostToolUseHook extends Function<ToolResult, HookControl> {}
+
+@FunctionalInterface
+public interface SessionStartHook extends Function<Void, HookControl> {}
+```
+
+## HookControl
+
+```java
+public enum HookControl {
+    CONTINUE,  // 继续执行
+    BLOCK      // 阻止执行
+}
+```
+
+## 使用示例
+
+```java
+hookSystem.registerPreToolHook(toolUse -> {
+    if (toolUse.getName().equals("dangerous_tool")) {
+        return HookControl.block("Dangerous tool not allowed");
+    }
+    return HookControl.CONTINUE;
+});
+```
+
+## 本章的局限
+
+- 没有异步钩子支持
+- 没有钩子优先级
+- 没有钩子超时
+
+## 下一章
+
+s09 会实现记忆系统，持久化存储用户偏好和项目信息。

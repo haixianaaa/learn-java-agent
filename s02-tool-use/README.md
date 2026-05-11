@@ -1,0 +1,99 @@
+# S02 - Tool Use
+
+本章扩展工具系统，引入 `ToolExecutor` 接口和 `ToolRegistry`，让工具注册和调用更加结构化。新增文件读写和编辑工具。
+
+## 运行方式
+
+```bash
+cd s02-tool-use
+mvn exec:java -Dexec.mainClass="com.claudecode.agent.s02.Main"
+```
+
+## 本章新增能力
+
+- 新增 `ToolExecutor` 接口
+- 新增 `ToolRegistry` 工具注册表
+- 新增 `read_file`、`write_file`、`edit_file` 工具
+- 实现路径安全检查，防止逃逸工作区
+- 实现消息规范化（合并相邻同角色消息）
+
+## 代码结构
+
+```text
+s02-tool-use/
+├── src/main/java/com/claudecode/agent/s02/
+│   ├── Main.java
+│   ├── client/
+│   │   └── LLMClient.java
+│   ├── model/
+│   │   ├── Message.java
+│   │   ├── ContentBlock.java
+│   │   ├── Tool.java
+│   │   ├── CreateMessageRequest.java
+│   │   └── CreateMessageResponse.java
+│   └── tool/
+│       ├── ToolExecutor.java     # 工具接口
+│       ├── ToolRegistry.java     # 工具注册表
+│       ├── BashTool.java
+│       ├── ReadFileTool.java
+│       ├── WriteFileTool.java
+│       └── EditFileTool.java
+└── pom.xml
+```
+
+## ToolExecutor 接口
+
+```java
+public interface ToolExecutor {
+    String invoke(Map<String, Object> input) throws Exception;
+    String name();
+    Tool toolSpec();
+}
+```
+
+每个工具只需要实现三个方法：
+- `invoke`: 执行工具逻辑
+- `name`: 返回工具名称
+- `toolSpec`: 返回工具规格（用于 API 调用）
+
+## 工具列表
+
+| 工具 | 描述 |
+|------|------|
+| `bash` | 执行 shell 命令 |
+| `read_file` | 读取文件内容 |
+| `write_file` | 写入文件内容 |
+| `edit_file` | 替换文件中的文本 |
+
+## 路径安全
+
+文件工具实现了路径安全检查：
+
+```java
+private Path safePath(String path) throws IOException {
+    Path cwd = Paths.get(System.getProperty("user.dir"));
+    Path full = cwd.resolve(path).toAbsolutePath().normalize();
+    if (!full.startsWith(cwd)) {
+        throw new IOException("Path escapes workspace");
+    }
+    return full;
+}
+```
+
+防止工具访问工作区外的文件。
+
+## 消息规范化
+
+`normalizeMessages()` 方法处理：
+- 为未响应的 tool_use 补充 cancelled 结果
+- 合并相邻的同角色消息
+
+## 本章的局限
+
+- 没有权限系统
+- 没有工具调用超时
+- 没有输出长度限制
+
+## 下一章
+
+s03 会加入 todo 工具，让 agent 可以维护当前会话的工作计划。
