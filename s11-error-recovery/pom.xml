@@ -12,6 +12,10 @@
     <artifactId>s11-error-recovery</artifactId>
     <name>S11 - Error Recovery</name>
 
+    <dependencies>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

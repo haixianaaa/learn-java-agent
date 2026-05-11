@@ -1,66 +1,65 @@
 package com.claudecode.agent.s13;
 
-import java.util.*;
-import java.util.concurrent.*;
+import com.claudecode.agent.s13.background.BackgroundManager;
+import com.claudecode.agent.s13.background.BackgroundTask;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Scanner;
 
 public class Main {
-    public static void main(String[] args) throws Exception {
-        System.out.println("S13 - Background Tasks");
-        
-        BackgroundTaskManager manager = new BackgroundTaskManager();
-        
-        String taskId = manager.start(() -> {
-            for (int i = 1; i <= 5; i++) {
-                Thread.sleep(1000);
-                System.out.println("Background task progress: " + i + "/5");
-            }
-            return "Background task completed";
-        });
-        
-        System.out.println("Task started with ID: " + taskId);
-        
-        Thread.sleep(3000);
-        
-        BackgroundTaskManager.TaskStatus status = manager.check(taskId);
-        System.out.println("Task status: " + status);
-        
-        manager.shutdown();
-    }
-}
+    public static void main(String[] args) {
+        Path tasksDir = Paths.get(System.getProperty("user.dir"), ".runtime-tasks");
+        BackgroundManager manager = new BackgroundManager(tasksDir);
 
-class BackgroundTaskManager {
-    private final ExecutorService executor = Executors.newCachedThreadPool();
-    private final Map<String, Future<String>> tasks = new ConcurrentHashMap<>();
-    private final Map<String, TaskStatus> statuses = new ConcurrentHashMap<>();
-    
-    public String start(Callable<String> task) {
-        String id = UUID.randomUUID().toString().substring(0, 8);
-        statuses.put(id, TaskStatus.RUNNING);
-        
-        Future<String> future = executor.submit(() -> {
-            try {
-                String result = task.call();
-                statuses.put(id, TaskStatus.COMPLETED);
-                return result;
-            } catch (Exception e) {
-                statuses.put(id, TaskStatus.FAILED);
-                throw e;
+        System.out.println("S13 - Background Tasks");
+        System.out.println("Commands: start <command>, list, get <id>, cancel <id>, results, exit()");
+
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) {
+            System.out.print("\n> ");
+            String input = scanner.nextLine().trim();
+
+            if (input.equals("exit()")) {
+                manager.shutdown();
+                System.out.println("Goodbye!");
+                break;
             }
-        });
-        
-        tasks.put(id, future);
-        return id;
-    }
-    
-    public TaskStatus check(String id) {
-        return statuses.getOrDefault(id, TaskStatus.NOT_FOUND);
-    }
-    
-    public void shutdown() {
-        executor.shutdown();
-    }
-    
-    enum TaskStatus {
-        RUNNING, COMPLETED, FAILED, NOT_FOUND
+
+            if (input.startsWith("start ")) {
+                String command = input.substring(6);
+                String id = manager.start(command);
+                System.out.println("Started background task: " + id);
+            } else if (input.equals("list")) {
+                for (BackgroundTask task : manager.list()) {
+                    System.out.println("  " + task.getId() + ": " + task.getStatus() + " - " + task.getCommand());
+                }
+            } else if (input.startsWith("get ")) {
+                String id = input.substring(4);
+                BackgroundTask task = manager.get(id);
+                if (task != null) {
+                    System.out.println(task);
+                    if (task.getOutput() != null) {
+                        System.out.println("Output:\n" + task.getOutput());
+                    }
+                } else {
+                    System.out.println("Task not found: " + id);
+                }
+            } else if (input.startsWith("cancel ")) {
+                String id = input.substring(7);
+                manager.cancel(id);
+                System.out.println("Cancelled: " + id);
+            } else if (input.equals("results")) {
+                String results = manager.drainResultsMessage();
+                if (results != null) {
+                    System.out.println(results);
+                } else {
+                    System.out.println("No pending results");
+                }
+            }
+        }
+
+        scanner.close();
     }
 }

@@ -12,6 +12,12 @@
     <artifactId>s12-task-system</artifactId>
     <name>S12 - Task System</name>
 
+    <dependencies>
+        <dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId></dependency>
+        <dependency><groupId>com.fasterxml.jackson.datatype</groupId><artifactId>jackson-datatype-jsr310</artifactId><version>2.16.1</version></dependency>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId></dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

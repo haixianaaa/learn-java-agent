@@ -1,58 +1,68 @@
 package com.claudecode.agent.s14;
 
-import java.util.*;
-import java.util.concurrent.*;
+import com.claudecode.agent.s14.cron.CronScheduler;
+import com.claudecode.agent.s14.cron.CronTask;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Scanner;
 
 public class Main {
-    public static void main(String[] args) throws Exception {
-        System.out.println("S14 - Cron Scheduler");
-        
-        CronScheduler scheduler = new CronScheduler();
-        
-        scheduler.schedule("job1", "*/5 * * * * *", () -> {
-            System.out.println("Cron job executed at: " + new Date());
-        });
-        
-        System.out.println("Scheduled jobs:");
-        scheduler.list().forEach(j -> System.out.println("  " + j));
-        
-        Thread.sleep(15000);
-        
-        scheduler.stop("job1");
-        scheduler.shutdown();
-    }
-}
+    public static void main(String[] args) {
+        Path dataDir = Paths.get(System.getProperty("user.dir"));
+        CronScheduler scheduler = new CronScheduler(dataDir);
 
-class CronScheduler {
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
-    private final Map<String, ScheduledFuture<?>> jobs = new ConcurrentHashMap<>();
-    
-    public void schedule(String id, String cronExpr, Runnable task) {
-        long interval = parseCronInterval(cronExpr);
-        ScheduledFuture<?> future = executor.scheduleAtFixedRate(task, 0, interval, TimeUnit.SECONDS);
-        jobs.put(id, future);
-    }
-    
-    public void stop(String id) {
-        ScheduledFuture<?> future = jobs.remove(id);
-        if (future != null) {
-            future.cancel(false);
+        int loaded = scheduler.start();
+        System.out.println("S14 - Cron Scheduler");
+        System.out.println("[Cron scheduler running. Background checks every second.]");
+        if (loaded > 0) {
+            System.out.println("[Cron] Loaded " + loaded + " scheduled tasks");
         }
-    }
-    
-    public List<String> list() {
-        return new ArrayList<>(jobs.keySet());
-    }
-    
-    public void shutdown() {
-        executor.shutdown();
-    }
-    
-    private long parseCronInterval(String cronExpr) {
-        String[] parts = cronExpr.split(" ");
-        if (parts.length >= 1 && parts[0].startsWith("*/")) {
-            return Long.parseLong(parts[0].substring(2));
+
+        System.out.println("Commands: create <name> <cron> <prompt>, list, delete <id>, test, exit()");
+
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) {
+            System.out.print("\n> ");
+            String input = scanner.nextLine().trim();
+
+            if (input.equals("exit()")) {
+                scheduler.stop();
+                System.out.println("Goodbye!");
+                break;
+            }
+
+            if (input.equals("/cron") || input.equals("list")) {
+                System.out.println(scheduler.listTasks());
+            } else if (input.equals("/test") || input.equals("test")) {
+                scheduler.enqueueTestNotification();
+                System.out.println("[Test notification enqueued. It will be injected on your next message.]");
+            } else if (input.startsWith("create ")) {
+                String[] parts = input.substring(7).split(" ", 3);
+                if (parts.length >= 3) {
+                    CronTask task = scheduler.create(parts[0], parts[1], parts[2]);
+                    System.out.println("Created scheduled task: " + task.getId());
+                } else {
+                    System.out.println("Usage: create <name> <cron> <prompt>");
+                }
+            } else if (input.startsWith("delete ")) {
+                String id = input.substring(7);
+                scheduler.delete(id);
+                System.out.println("Deleted: " + id);
+            } else if (input.equals("notifications")) {
+                List<String> notifications = scheduler.drainNotifications();
+                if (notifications.isEmpty()) {
+                    System.out.println("No pending notifications");
+                } else {
+                    for (String n : notifications) {
+                        System.out.println(n);
+                    }
+                }
+            }
         }
-        return 60;
+
+        scanner.close();
     }
 }
