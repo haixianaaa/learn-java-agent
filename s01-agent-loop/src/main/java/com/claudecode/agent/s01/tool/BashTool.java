@@ -3,6 +3,8 @@ package com.claudecode.agent.s01.tool;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -13,6 +15,7 @@ public class BashTool {
     );
     private static final int TIMEOUT_SECONDS = 120;
     private static final int MAX_OUTPUT_LENGTH = 50000;
+    private static final boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().contains("windows");
 
     public String execute(String command) {
         for (String dangerous : DANGEROUS_COMMANDS) {
@@ -23,10 +26,14 @@ public class BashTool {
 
         try {
             ProcessBuilder processBuilder = new ProcessBuilder();
-            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+            Charset charset;
+            
+            if (IS_WINDOWS) {
                 processBuilder.command("cmd", "/c", command);
+                charset = Charset.forName("GBK");
             } else {
                 processBuilder.command("sh", "-c", command);
+                charset = StandardCharsets.UTF_8;
             }
             processBuilder.redirectErrorStream(true);
 
@@ -34,7 +41,7 @@ public class BashTool {
 
             StringBuilder output = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream()))) {
+                    new InputStreamReader(process.getInputStream(), charset))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
