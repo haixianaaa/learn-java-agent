@@ -3,14 +3,12 @@ package com.claudecode.agent.s04.agent;
 import com.claudecode.agent.s04.client.LLMClient;
 import com.claudecode.agent.s04.model.*;
 import com.claudecode.agent.s04.tool.ToolRegistry;
-import lombok.Builder;
 import lombok.Data;
 
 import java.io.IOException;
 import java.util.*;
 
 @Data
-@Builder
 public class SubAgent {
     private static final String MODEL = "mimo-v2.5-pro";
     private static final int MAX_TURNS = 30;
@@ -95,18 +93,16 @@ public class SubAgent {
     }
 
     private String extractText(Message message) {
-        Object content = message.getContent();
-        if (content instanceof String text) {
-            return text;
-        } else if (content instanceof List<?> blocks) {
-            StringBuilder sb = new StringBuilder();
-            for (Object block : blocks) {
-                if (block instanceof ContentBlock.TextBlock textBlock) {
-                    sb.append(textBlock.getText()).append("\n");
-                }
-            }
-            return sb.toString().trim();
+        List<ContentBlock> content = message.getContent();
+        if (content == null) {
+            return "";
         }
-        return "";
+        StringBuilder sb = new StringBuilder();
+        for (ContentBlock block : content) {
+            if (block instanceof ContentBlock.TextBlock textBlock) {
+                sb.append(textBlock.getText()).append("\n");
+            }
+        }
+        return sb.toString().trim();
     }
 }
