@@ -1,13 +1,11 @@
 package com.claudecode.agent.s10.prompt;
 
-import lombok.Builder;
 import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Data
-@Builder
 public class SystemPrompt {
     private String role;
     private List<String> guidelines;
@@ -17,6 +15,24 @@ public class SystemPrompt {
     private String claudeMd;
     private String dynamicContext;
     private String memoryGuidance;
+
+    public SystemPrompt() {
+        this.guidelines = new ArrayList<>();
+        this.constraints = new ArrayList<>();
+    }
+
+    public SystemPrompt(String role, List<String> guidelines, List<String> constraints, 
+                        String skillsAvailable, String memory, String claudeMd, 
+                        String dynamicContext, String memoryGuidance) {
+        this.role = role;
+        this.guidelines = guidelines != null ? guidelines : new ArrayList<>();
+        this.constraints = constraints != null ? constraints : new ArrayList<>();
+        this.skillsAvailable = skillsAvailable;
+        this.memory = memory;
+        this.claudeMd = claudeMd;
+        this.dynamicContext = dynamicContext;
+        this.memoryGuidance = memoryGuidance;
+    }
 
     public String render() {
         StringBuilder sb = new StringBuilder();
