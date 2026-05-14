@@ -1,125 +1,191 @@
 package com.claudecode.agent.s12.task;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Stream;
 
 public class TaskManager {
     private final Path tasksDir;
-    private final Map<String, Task> tasks = new ConcurrentHashMap<>();
+    private long nextId;
     private final ObjectMapper objectMapper;
 
     public TaskManager(Path tasksDir) {
         this.tasksDir = tasksDir;
         this.objectMapper = new ObjectMapper();
-        this.objectMapper.registerModule(new JavaTimeModule());
-    }
-
-    public void loadAll() throws IOException {
-        tasks.clear();
-        if (!Files.exists(tasksDir)) {
-            return;
-        }
-
-        Files.walk(tasksDir)
-                .filter(p -> p.toString().endsWith(".json"))
-                .forEach(this::loadTask);
-    }
-
-    private void loadTask(Path file) {
-        try {
-            String content = Files.readString(file);
-            Task task = objectMapper.readValue(content, Task.class);
-            tasks.put(task.getId(), task);
-        } catch (Exception e) {
-            System.err.println("Failed to load task: " + file);
-        }
-    }
-
-    public Task create(String content, String priority) {
-        Task task = Task.create(content, priority);
-        tasks.put(task.getId(), task);
-        saveTask(task);
-        return task;
-    }
-
-    public Task get(String id) {
-        return tasks.get(id);
-    }
-
-    public List<Task> list() {
-        return new ArrayList<>(tasks.values());
-    }
-
-    public List<Task> listByStatus(String status) {
-        return tasks.values().stream()
-                .filter(t -> t.getStatus().equals(status))
-                .toList();
-    }
-
-    public void update(String id, String status) {
-        Task existing = tasks.get(id);
-        if (existing != null) {
-            Task updated = existing.withStatus(status);
-            tasks.put(id, updated);
-            saveTask(updated);
-        }
-    }
-
-    public void summarize(String id, String summary) {
-        Task existing = tasks.get(id);
-        if (existing != null) {
-            Task updated = existing.withSummary(summary);
-            tasks.put(id, updated);
-            saveTask(updated);
-        }
-    }
-
-    public void delete(String id) {
-        tasks.remove(id);
-        try {
-            Files.deleteIfExists(tasksDir.resolve(id + ".json"));
-        } catch (IOException ignored) {
-        }
-    }
-
-    private void saveTask(Task task) {
+        this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+        
         try {
             Files.createDirectories(tasksDir);
-            Path file = tasksDir.resolve(task.getId() + ".json");
-            String content = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(task);
-            Files.writeString(file, content);
-        } catch (Exception e) {
-            System.err.println("Failed to save task: " + task.getId());
+            this.nextId = maxTaskId() + 1;
+        } catch (IOException e) {
+            this.nextId = 1;
         }
     }
 
-    public String renderList() {
+    public String create(String subject, String description) throws IOException {
+        TaskRecord task = TaskRecord.create(nextId, subject, description);
+        save(task);
+        nextId++;
+        return renderJson(task);
+    }
+
+    public String get(long taskId) throws IOException {
+        TaskRecord task = load(taskId);
+        return renderJson(task);
+    }
+
+    public String update(long taskId, TaskUpdate update) throws IOException {
+        TaskRecord task = load(taskId);
+
+        if (update.getOwner() != null) {
+            task.setOwner(update.getOwner());
+        }
+
+        if (update.getStatus() != null) {
+            task.setStatus(update.getStatus());
+            if (update.getStatus() == TaskStatus.COMPLETED) {
+                clearDependency(taskId);
+            }
+        }
+
+        if (!update.getAddBlockedBy().isEmpty()) {
+            mergeUnique(task.getBlockedBy(), update.getAddBlockedBy());
+        }
+
+        if (!update.getAddBlocks().isEmpty()) {
+            mergeUnique(task.getBlocks(), update.getAddBlocks());
+            for (Long blockedId : update.getAddBlocks()) {
+                try {
+                    TaskRecord blocked = load(blockedId);
+                    if (!blocked.getBlockedBy().contains(taskId)) {
+                        blocked.getBlockedBy().add(taskId);
+                        blocked.getBlockedBy().sort(Long::compare);
+                        save(blocked);
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        }
+
+        task.getBlockedBy().sort(Long::compare);
+        task.getBlocks().sort(Long::compare);
+        save(task);
+        return renderJson(task);
+    }
+
+    public String listAll() throws IOException {
+        List<TaskRecord> tasks = loadAll();
         if (tasks.isEmpty()) {
             return "No tasks.";
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("Tasks:\n");
-
-        List<Task> sorted = tasks.values().stream()
-                .sorted(Comparator.comparing(Task::getCreatedAt))
-                .toList();
-
-        for (Task task : sorted) {
-            sb.append("  ").append(task).append("\n");
+        tasks.sort(Comparator.comparingLong(TaskRecord::getId));
+        List<String> lines = new ArrayList<>();
+        
+        for (TaskRecord task : tasks) {
+            String blocked = task.getBlockedBy().isEmpty() 
+                    ? "" 
+                    : String.format(" (blocked by: %s)", task.getBlockedBy());
+            String owner = task.getOwner() == null || task.getOwner().isEmpty() 
+                    ? "" 
+                    : String.format(" owner=%s", task.getOwner());
+            lines.add(String.format("%s #%d: %s%s%s",
+                    task.getStatus().getMarker(),
+                    task.getId(),
+                    task.getSubject(),
+                    owner,
+                    blocked));
         }
 
-        long completed = tasks.values().stream()
-                .filter(t -> t.getStatus().equals("completed"))
-                .count();
-        sb.append(String.format("(%d/%d completed)", completed, tasks.size()));
+        return String.join("\n", lines);
+    }
 
-        return sb.toString();
+    private long maxTaskId() throws IOException {
+        long maxId = 0;
+        try (Stream<Path> stream = Files.list(tasksDir)) {
+            for (Path path : stream.toList()) {
+                String name = path.getFileName().toString();
+                if (name.startsWith("task_") && name.endsWith(".json")) {
+                    String idText = name.substring(5, name.length() - 5);
+                    try {
+                        long id = Long.parseLong(idText);
+                        maxId = Math.max(maxId, id);
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
+        return maxId;
+    }
+
+    private TaskRecord load(long taskId) throws IOException {
+        Path path = taskPath(taskId);
+        if (!Files.exists(path)) {
+            throw new IOException("Task " + taskId + " not found");
+        }
+        String content = Files.readString(path);
+        return objectMapper.readValue(content, TaskRecord.class);
+    }
+
+    private List<TaskRecord> loadAll() throws IOException {
+        List<TaskRecord> tasks = new ArrayList<>();
+        try (Stream<Path> stream = Files.list(tasksDir)) {
+            for (Path path : stream.toList()) {
+                if (!Files.isRegularFile(path)) continue;
+                String name = path.getFileName().toString();
+                if (!name.startsWith("task_") || !name.endsWith(".json")) continue;
+                
+                try {
+                    String content = Files.readString(path);
+                    TaskRecord task = objectMapper.readValue(content, TaskRecord.class);
+                    tasks.add(task);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        return tasks;
+    }
+
+    private void save(TaskRecord task) throws IOException {
+        Path path = taskPath(task.getId());
+        String content = objectMapper.writeValueAsString(task);
+        Files.writeString(path, content);
+    }
+
+    private void clearDependency(long completedId) throws IOException {
+        for (TaskRecord task : loadAll()) {
+            if (task.getBlockedBy().contains(completedId)) {
+                task.getBlockedBy().removeIf(id -> id == completedId);
+                save(task);
+            }
+        }
+    }
+
+    private String renderJson(TaskRecord task) throws IOException {
+        return objectMapper.writeValueAsString(task);
+    }
+
+    private Path taskPath(long taskId) {
+        return tasksDir.resolve(String.format("task_%d.json", taskId));
+    }
+
+    private void mergeUnique(List<Long> target, List<Long> additions) {
+        target.addAll(additions);
+        target.sort(Long::compare);
+        List<Long> unique = new ArrayList<>();
+        for (Long id : target) {
+            if (!unique.contains(id)) {
+                unique.add(id);
+            }
+        }
+        target.clear();
+        target.addAll(unique);
     }
 }

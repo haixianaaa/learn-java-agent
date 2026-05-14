@@ -1,60 +1,82 @@
 package com.claudecode.agent.s12;
 
-import com.claudecode.agent.s12.task.Task;
+import com.claudecode.agent.s12.client.LLMClient;
+import com.claudecode.agent.s12.model.ContentBlock;
+import com.claudecode.agent.s12.model.Message;
 import com.claudecode.agent.s12.task.TaskManager;
+import com.claudecode.agent.s12.tool.ToolRegistry;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
+        String apiKey = System.getenv("ANTHROPIC_API_KEY");
+        String baseUrl = System.getenv("ANTHROPIC_BASE_URL");
+
+        if (apiKey == null || apiKey.isEmpty()) {
+            System.err.println("Error: ANTHROPIC_API_KEY environment variable is not set");
+            return;
+        }
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            System.err.println("Error: ANTHROPIC_BASE_URL environment variable is not set");
+            return;
+        }
+
         Path tasksDir = Paths.get(System.getProperty("user.dir"), ".tasks");
         TaskManager taskManager = new TaskManager(tasksDir);
 
-        try {
-            taskManager.loadAll();
-        } catch (Exception e) {
-            System.err.println("Failed to load tasks: " + e.getMessage());
-        }
-
-        System.out.println("S12 - Task System");
-        System.out.println("Commands: list, create <content> <priority>, update <id> <status>, delete <id>, exit()");
+        LLMClient client = new LLMClient(baseUrl, apiKey);
+        ToolRegistry tools = new ToolRegistry(taskManager);
+        LoopState state = new LoopState(client, tools);
 
         Scanner scanner = new Scanner(System.in);
 
-        while (true) {
-            System.out.print("\n> ");
-            String input = scanner.nextLine().trim();
+        System.out.println("Agent started with task management. Type 'exit()' to quit.");
 
-            if (input.equals("exit()")) {
+        while (true) {
+            System.out.print("\n--- How can I help you? ");
+            String query = scanner.nextLine().trim();
+
+            if (query.equals("exit()")) {
                 System.out.println("Goodbye!");
                 break;
             }
 
-            if (input.equals("list")) {
-                System.out.println(taskManager.renderList());
-            } else if (input.startsWith("create ")) {
-                String[] parts = input.substring(7).split(" ", 2);
-                if (parts.length >= 1) {
-                    String content = parts[0];
-                    String priority = parts.length > 1 ? parts[1] : "medium";
-                    Task task = taskManager.create(content, priority);
-                    System.out.println("Created: " + task);
-                }
-            } else if (input.startsWith("update ")) {
-                String[] parts = input.substring(7).split(" ", 2);
-                if (parts.length == 2) {
-                    taskManager.update(parts[0], parts[1]);
-                    System.out.println("Updated task " + parts[0]);
-                }
-            } else if (input.startsWith("delete ")) {
-                String id = input.substring(7);
-                taskManager.delete(id);
-                System.out.println("Deleted task " + id);
+            state.addToContext(Message.text("user", query));
+
+            try {
+                String system = String.format(
+                        "You are a coding agent at %s. Use task tools for multi-step work.",
+                        System.getProperty("user.dir")
+                );
+                state.agentLoop(system);
+            } catch (Exception e) {
+                System.err.println("Error: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            Message finalMessage = state.getLastMessage();
+            if (finalMessage != null) {
+                String finalContent = extractText(finalMessage.getContent());
+                System.out.println("\n--- Final response:\n" + finalContent);
             }
         }
 
         scanner.close();
+    }
+
+    private static String extractText(List<ContentBlock> content) {
+        StringBuilder sb = new StringBuilder();
+        for (ContentBlock block : content) {
+            if (block instanceof ContentBlock.TextBlock textBlock) {
+                if (sb.length() > 0) sb.append("\n");
+                sb.append(textBlock.getText());
+            }
+        }
+        return sb.toString();
     }
 }

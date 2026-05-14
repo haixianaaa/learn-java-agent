@@ -1,81 +1,76 @@
 package com.claudecode.agent.s11;
 
-import com.claudecode.agent.s11.recovery.*;
+import com.claudecode.agent.s11.client.LLMClient;
+import com.claudecode.agent.s11.model.ContentBlock;
+import com.claudecode.agent.s11.model.Message;
+import com.claudecode.agent.s11.tool.ToolRegistry;
 
-import java.time.Duration;
+import java.io.IOException;
+import java.util.List;
 import java.util.Scanner;
-import java.util.function.Supplier;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("S11 - Error Recovery System Demo");
-        System.out.println("This demonstrates retry with exponential backoff.\n");
+        String apiKey = System.getenv("ANTHROPIC_API_KEY");
+        String baseUrl = System.getenv("ANTHROPIC_BASE_URL");
 
-        RecoveryHandler handler = new RecoveryHandler();
+        if (apiKey == null || apiKey.isEmpty()) {
+            System.err.println("Error: ANTHROPIC_API_KEY environment variable is not set");
+            return;
+        }
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            System.err.println("Error: ANTHROPIC_BASE_URL environment variable is not set");
+            return;
+        }
+
+        LLMClient client = new LLMClient(baseUrl, apiKey);
+        ToolRegistry tools = new ToolRegistry();
+        LoopState state = new LoopState(client, tools);
+
         Scanner scanner = new Scanner(System.in);
 
-        System.out.println("Commands: test, exit()");
-        
-        while (true) {
-            System.out.print("\n> ");
-            String input = scanner.nextLine().trim();
+        System.out.println("Agent started with error recovery. Type 'exit()' to quit.");
 
-            if (input.equals("exit()")) {
+        while (true) {
+            System.out.print("\n--- How can I help you? ");
+            String query = scanner.nextLine().trim();
+
+            if (query.equals("exit()")) {
                 System.out.println("Goodbye!");
                 break;
             }
 
-            if (input.equals("test")) {
-                RecoveryState state = RecoveryState.builder().build();
-                
-                Supplier<String> task = () -> {
-                    if (Math.random() < 0.7) {
-                        throw new RuntimeException("Simulated transient error");
-                    }
-                    return "Task completed successfully";
-                };
+            state.addToContext(Message.text("user", query));
 
-                try {
-                    String result = handler.executeWithRecovery(task, state);
-                    System.out.println("Result: " + result);
-                    System.out.println("Recovery state: " + state);
-                } catch (Exception e) {
-                    System.out.println("Failed after all retries: " + e.getMessage());
-                }
+            try {
+                String system = String.format(
+                        "You are a coding agent at %s. Use tools to solve tasks.",
+                        System.getProperty("user.dir")
+                );
+                state.agentLoop(system);
+            } catch (Exception e) {
+                System.err.println("Error: " + e.getMessage());
+                e.printStackTrace();
+            }
+
+            Message finalMessage = state.getLastMessage();
+            if (finalMessage != null) {
+                String finalContent = extractText(finalMessage.getContent());
+                System.out.println("\n--- Final response:\n" + finalContent);
             }
         }
 
         scanner.close();
     }
-}
 
-class RecoveryHandler {
-    public <T> T executeWithRecovery(Supplier<T> task, RecoveryState state) {
-        while (state.getTransportAttempts() < RecoveryConfig.MAX_RECOVERY_ATTEMPTS) {
-            try {
-                T result = task.get();
-                state.setTransportAttempts(0);
-                return result;
-            } catch (Exception e) {
-                String errorText = e.getMessage();
-                
-                if (RecoveryUtils.isTransientTransportError(errorText)) {
-                    state.setTransportAttempts(state.getTransportAttempts() + 1);
-                    System.out.printf("[Recovery] backoff (%d/%d): transient failure%n",
-                            state.getTransportAttempts(), RecoveryConfig.MAX_RECOVERY_ATTEMPTS);
-                    
-                    Duration delay = RecoveryUtils.backoffDelay(state.getTransportAttempts());
-                    try {
-                        Thread.sleep(delay);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Interrupted", ie);
-                    }
-                } else {
-                    throw new RuntimeException("Non-recoverable error: " + errorText, e);
-                }
+    private static String extractText(List<ContentBlock> content) {
+        StringBuilder sb = new StringBuilder();
+        for (ContentBlock block : content) {
+            if (block instanceof ContentBlock.TextBlock textBlock) {
+                if (sb.length() > 0) sb.append("\n");
+                sb.append(textBlock.getText());
             }
         }
-        throw new RuntimeException("Max recovery attempts exceeded");
+        return sb.toString();
     }
 }

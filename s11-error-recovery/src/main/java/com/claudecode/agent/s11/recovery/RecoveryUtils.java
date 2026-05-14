@@ -2,8 +2,11 @@ package com.claudecode.agent.s11.recovery;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Random;
 
 public class RecoveryUtils {
+    private static final Random random = new Random();
+
     private static final List<String> TRANSIENT_ERROR_PATTERNS = List.of(
             "timeout", "timed out", "rate limit", "too many requests",
             "unavailable", "connection", "overloaded", "temporarily",
@@ -30,7 +33,7 @@ public class RecoveryUtils {
                 RecoveryConfig.BACKOFF_BASE_DELAY_SECS * Math.pow(2, attempt),
                 RecoveryConfig.BACKOFF_MAX_DELAY_SECS
         );
-        double jitter = Math.random();
+        double jitter = random.nextDouble();
         return Duration.ofMillis((long) ((base + jitter) * 1000));
     }
 
