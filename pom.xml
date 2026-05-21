@@ -33,6 +33,7 @@
         <module>s18-worktree-task-isolation</module>
         <module>s19-mcp-plugin</module>
         <module>s20-tool-refactor</module>
+        <module>s21-rag</module>
         <module>sfull</module>
     </modules>
 
